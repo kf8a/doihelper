@@ -1,11 +1,14 @@
 import Time
+import Regex exposing (..)
 import Html exposing (..)
-import Html.Attributes exposing (id, for, class, autofocus, placeholder, classList, checked, href, rel, type_, value)
-import Html.Events exposing (on, keyCode, onInput, onCheck, onClick)
+import Html.Attributes exposing (id, for, class, autofocus, placeholder, classList, checked
+                                , href, rel, type_, value, rows, action)
+import Html.Events exposing (on, keyCode, onInput, onCheck, onClick, onWithOptions)
 import Http
 import HttpBuilder exposing (..)
 import Json.Decode as Decode
-import Json.Decode.Pipeline exposing (decode, required)
+import Json.Decode.Pipeline exposing (decode, required, requiredAt)
+
 
 type alias Model =
   { doi : String
@@ -15,6 +18,7 @@ type alias Model =
   , container_title : String
   , page : String
   , authors : List Author
+  , pub_year : Int
   }
 
 type alias Author = 
@@ -33,16 +37,18 @@ type Msg
   | UpdateVolume String
   | UpdateAuthors String
   | UpdateDOI String
+  | UpdatePubYear String
 
 
 initialModel =
   { doi = "10.1038/nrd842"
-  , title = "Nothing"
-  , volume = "0"
-  , issue = "0"
+  , title = ""
+  , volume = ""
+  , issue = ""
   , container_title = ""
   , page = ""
   , authors = []
+  , pub_year = 0
   }
 
 onKeyPress : (Int -> msg) -> Attribute msg
@@ -60,6 +66,8 @@ authorDecoder =
   |> required "family" Decode.string
   |> required "given" Decode.string
 
+pubYearDecoder =
+  Decode.string 
 
 doiDecoder : Decode.Decoder Model
 doiDecoder =
@@ -71,6 +79,7 @@ doiDecoder =
   |> required "container-title" Decode.string
   |> required "page" Decode.string
   |> required "author" (Decode.list authorDecoder)
+  |> requiredAt ["published-print", "date-parts","0","0"] (Decode.int )
 
 
 handleRequestComplete : Result Http.Error Model -> Msg
@@ -79,7 +88,10 @@ handleRequestComplete result =
     Ok data ->
       Update (Debug.log "result" data)
     Err msg ->
-      NoOp
+      let
+          a = Debug.log "error" msg
+      in
+         NoOp
 
 
 addItem : Model -> Cmd Msg
@@ -122,32 +134,43 @@ update msg model =
          ( newModel, Cmd.none )
     UpdatePage inputString ->
       let
-          newModel = {model | page = inputString }
+          newModel = { model | page = inputString }
       in
          ( newModel, Cmd.none )
     UpdateAuthors inputString ->
       Debug.crash "TODO"
     UpdateDOI inputString ->
       let
-          newModel = {model | doi = inputString }
+          newModel = { model | doi = inputString }
       in
          ( newModel, Cmd.none )
     UpdateVolume inputString ->
       let
-          newModel = {model | volume = inputString }
+          newModel = { model | volume = inputString }
+      in
+         ( newModel, Cmd.none )
+    UpdatePubYear inputString ->
+      let
+          pub = Result.withDefault 0 (String.toInt inputString)
+          newModel = { model | pub_year = pub }
       in
          ( newModel, Cmd.none )
 
+onClickWithoutSubmit msg =
+  onWithOptions "click" {stopPropagation = True, preventDefault = True} (Decode.succeed msg)
 
 view : Model -> Html Msg
 view model = 
   div [ class "container" ] 
   [ h3 [] [text "DOI lookup"]
-  , doiView model
-  , button [ class "btn btn-default"
-           , onClick Fetch ] 
+  , form [action "/"] 
+    [ doiView model
+    , button [ class "btn"
+           , onClickWithoutSubmit  Fetch ] 
         [text "Lookup DOI"]
-  , citationView model
+    , citationView model
+    , button [ class "btn bnt-submit" ] [ text "Submit" ]
+    ]
   ]
 
 doiView : Model -> Html Msg
@@ -166,59 +189,53 @@ doiView model =
          ]
   ]
 
-citationViewRow : String ->  Html Msg
-citationViewRow field =
-  div [class "form-group" ] 
-    [ label [ for "article-title" ] [ text "Title" ]
-    , input [ id "article-title"
-          , class "form-control"
-          , type_ "text"
-          , placeholder "Article Title" 
-          , value field 
-          , onInput UpdateTitle ] []
-    ]
+to_author : Author -> String
+to_author author =
+  String.join ", " [author.family, author.given] 
+
+to_authors : List Author -> String
+to_authors authors =
+  String.join "\n" (List.map to_author authors)
+
+authorView : Model -> Html Msg
+authorView model =
+    div [class "form-group" ] 
+      [ label [ for "article-authors"] [ text "Authors" ]
+      , textarea [ id "article-authors"
+            , class "form-control"
+            , rows 3
+            , placeholder "Authors"
+            , value (to_authors model.authors)
+            , onInput UpdateAuthors ] []
+      ]
+
+
+citationViewRow : String -> String -> Attribute Msg ->  Html Msg
+citationViewRow field hint action =
+  let
+    dashified = replace All (regex "\\s") (\_ -> "-") hint
+    my_id = String.append "article-" (String.toLower dashified)
+  in
+    div [class "form-group" ] 
+      [ label [ for my_id ] [ text hint]
+      , input [ id my_id
+            , class "form-control"
+            , type_ "text"
+            , placeholder hint
+            , value field 
+            , action ] []
+      ]
 
 
 citationView: Model -> Html Msg
 citationView model =
   div []
-    [ citationViewRow model.title 
-    , div [class "form-group" ] 
-        [ label [ for "article-title" ] [ text "Title" ]
-        , input [ id "article-title"
-                , class "form-control"
-                , type_ "text"
-                , placeholder "Article Title" 
-                , value model.title
-                ,  onInput UpdateTitle ] []
-        ]
-    , div [ class "form-group" ]
-        [ label [ for "journal-title" ] [ text "Journal" ]
-        , input [ id "journal-title"
-                , class "form-control"
-                , type_ "text"
-                , placeholder "Journal"
-                , value model.container_title
-                , onInput UpdateJournal ] []
-        ]
-    , div [ class "form-group" ]
-        [ label [ for "journal-page" ] [ text "Pages" ]
-        , input [ id "journal-page"
-                , class "form-control"
-                , type_ "text"
-                , placeholder "Pages"
-                , value model.page
-                , onInput UpdatePage ] []
-        ]
-    , div [ class "form-group" ]
-        [ label [ for "journal-volume" ] [ text "Volume" ]
-        , input [ id "journal-volume"
-                , class "form-control"
-                , type_ "text"
-                , placeholder "Volume"
-                , value model.volume
-                , onInput UpdateVolume ] []
-        ]
+    [ authorView model
+    , citationViewRow model.title "Article Title" (onInput UpdateTitle)
+    , citationViewRow model.container_title "Journal" (onInput UpdateJournal)
+    , citationViewRow model.page "Pages" (onInput UpdatePage)
+    , citationViewRow model.volume "Volume" (onInput UpdateVolume)
+    , citationViewRow (toString model.pub_year) "Year" (onInput UpdatePubYear)
     ]
 
 
