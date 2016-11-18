@@ -1,105 +1,154 @@
+import Time
 import Html exposing (..)
-import Html
-import Html.Events exposing (onClick)
-import Html.Attributes exposing (class, autofocus, placeholder, classList, checked, href, rel, type_, value)
+import Html.Attributes exposing (id, for, class, autofocus, placeholder, classList, checked, href, rel, type_, value)
 import Html.Events exposing (on, keyCode, onInput, onCheck, onClick)
-import Json.Decode exposing (Decoder, decodeValue, succeed, int, string, oneOf, null, list, bool, maybe)
-import Json.Decode.Extra exposing ((|:))
-
-import Json.Decode.Pipeline exposing (decode, required)
-import Task exposing (..)
-import HttpBuilder exposing (..)
-import Time exposing (second)
 import Http
-import String
-
+import HttpBuilder exposing (..)
+import Json.Decode as Decode
+import Json.Decode.Pipeline exposing (decode, required)
 
 type alias Model =
   { doi : String
   , title : String
+  , volume : String
+  , issue : String
+  , container_title : String
+  , page : String
+  , authors : List Author
   }
 
+type alias Author = 
+  { family : String
+  , given : String
+  }
 
 type Msg
- = Fetch
- | Receive Model
- | Change String
- | NoOp
+  = NoOp
+  | Fetch
+  | Update Model
+  | Change String
+  | UpdateTitle String
+  | UpdateJournal String
+  | UpdatePage String
+  | UpdateVolume String
+  | UpdateAuthors String
+  | UpdateDOI String
 
 
 initialModel =
   { doi = "10.1038/nrd842"
   , title = "Nothing"
+  , volume = "0"
+  , issue = "0"
+  , container_title = ""
+  , page = ""
+  , authors = []
   }
-
 
 onKeyPress : (Int -> msg) -> Attribute msg
 onKeyPress tagger =
-  on "keypress" (Json.Decode.map tagger keyCode)
+  on "keypress" (Decode.map tagger keyCode)
 
 
 is13 : Int -> Msg
 is13 code =
   if code == 13 then Fetch else NoOp
 
+authorDecoder : Decode.Decoder Author
+authorDecoder =
+  decode Author
+  |> required "family" Decode.string
+  |> required "given" Decode.string
+
+
+doiDecoder : Decode.Decoder Model
+doiDecoder =
+  decode Model
+  |> required "DOI" Decode.string
+  |> required "title" Decode.string
+  |> required "volume" Decode.string
+  |> required "issue" Decode.string
+  |> required "container-title" Decode.string
+  |> required "page" Decode.string
+  |> required "author" (Decode.list authorDecoder)
+
+
+handleRequestComplete : Result Http.Error Model -> Msg
+handleRequestComplete result =
+  case result of
+    Ok data ->
+      Update (Debug.log "result" data)
+    Err msg ->
+      NoOp
+
+
+addItem : Model -> Cmd Msg
+addItem model =
+  HttpBuilder.get (url model)
+  |> withHeader "Accept" "application/json"
+  |> withTimeout (10 * Time.second)
+  |> withExpect (Http.expectJson doiDecoder)
+  |> send handleRequestComplete
+
+
+url : Model -> String
+url model =
+  String.append "http://dx.doi.org/" model.doi
+
 
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = 
   case msg of
     Fetch ->
-      ( model, fetchDoi (Debug.log "model" model.doi))
-    Receive doi ->
-      ( doi, Cmd.none )
+      ( model, addItem model)
+    NoOp ->
+      ( model, Cmd.none )
+    Update new_model ->
+      ( new_model, Cmd.none )
     Change inputString ->
       let
           newModel =  { model | doi = inputString }
       in
          ( newModel, Cmd.none )
-    NoOp ->
-      ( model, Cmd.none )
-
-
--- getDoi : String -> Task (HttpBuilder.Error String) (HttpBuilder.Response Model)
--- getDoi doi = 
---   HttpBuilder.get (doiUrl doi)
---   |> withHeader "Content-Type" "application/json"
---   |> withExpect(Http.expectJson doiDecoder)
---   |> withTimeout (10 * Time.second)
---   |> send Receive
---
-getDoi doi =
-  doi
-
-fetchDoi : String -> Cmd Msg
-fetchDoi doi = 
-  Cmd.none
-  -- let 
-  --     url = doiUrl doi
-  -- in
-  --    Task.perform (\_ -> NoOp) Receive (getDoi url)
-
-
-doiUrl : String -> String
-doiUrl doi =
-  String.append "http://dx.doi.org/" (Debug.log "doil" doi)
-
-
-doiDecoder : Json.Decode.Decoder Model
-doiDecoder =
-  decode Model
-  |> required "title" Json.Decode.string
-  |> required "doi" Json.Decode.string
+    UpdateTitle inputString ->
+      let
+          newModel = { model | title = inputString }
+      in
+         ( newModel, Cmd.none )
+    UpdateJournal inputString ->
+      let
+          newModel = { model | container_title = inputString }
+      in
+         ( newModel, Cmd.none )
+    UpdatePage inputString ->
+      let
+          newModel = {model | page = inputString }
+      in
+         ( newModel, Cmd.none )
+    UpdateAuthors inputString ->
+      Debug.crash "TODO"
+    UpdateDOI inputString ->
+      let
+          newModel = {model | doi = inputString }
+      in
+         ( newModel, Cmd.none )
+    UpdateVolume inputString ->
+      let
+          newModel = {model | volume = inputString }
+      in
+         ( newModel, Cmd.none )
 
 
 view : Model -> Html Msg
 view model = 
-  div [] 
+  div [ class "container" ] 
   [ h3 [] [text "DOI lookup"]
   , doiView model
-  , button [onClick Fetch ] 
+  , button [ class "btn btn-default"
+           , onClick Fetch ] 
         [text "Lookup DOI"]
+  , citationView model
   ]
-
 
 doiView : Model -> Html Msg
 doiView model =
@@ -111,8 +160,66 @@ doiView model =
           , onInput Change
           , onKeyPress is13
           ] [ ]
-  , p [] [text model.title ]
+  , p [] [ text model.title 
+         , text model.page
+         , text model.volume
+         ]
   ]
+
+citationViewRow : String ->  Html Msg
+citationViewRow field =
+  div [class "form-group" ] 
+    [ label [ for "article-title" ] [ text "Title" ]
+    , input [ id "article-title"
+          , class "form-control"
+          , type_ "text"
+          , placeholder "Article Title" 
+          , value field 
+          , onInput UpdateTitle ] []
+    ]
+
+
+citationView: Model -> Html Msg
+citationView model =
+  div []
+    [ citationViewRow model.title 
+    , div [class "form-group" ] 
+        [ label [ for "article-title" ] [ text "Title" ]
+        , input [ id "article-title"
+                , class "form-control"
+                , type_ "text"
+                , placeholder "Article Title" 
+                , value model.title
+                ,  onInput UpdateTitle ] []
+        ]
+    , div [ class "form-group" ]
+        [ label [ for "journal-title" ] [ text "Journal" ]
+        , input [ id "journal-title"
+                , class "form-control"
+                , type_ "text"
+                , placeholder "Journal"
+                , value model.container_title
+                , onInput UpdateJournal ] []
+        ]
+    , div [ class "form-group" ]
+        [ label [ for "journal-page" ] [ text "Pages" ]
+        , input [ id "journal-page"
+                , class "form-control"
+                , type_ "text"
+                , placeholder "Pages"
+                , value model.page
+                , onInput UpdatePage ] []
+        ]
+    , div [ class "form-group" ]
+        [ label [ for "journal-volume" ] [ text "Volume" ]
+        , input [ id "journal-volume"
+                , class "form-control"
+                , type_ "text"
+                , placeholder "Volume"
+                , value model.volume
+                , onInput UpdateVolume ] []
+        ]
+    ]
 
 
 subscriptions : Model -> Sub Msg
