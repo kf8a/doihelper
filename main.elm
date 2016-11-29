@@ -2,12 +2,13 @@ import Time
 import Regex exposing (..)
 import Html exposing (..)
 import Html.Attributes exposing (id, for, class, autofocus, placeholder, classList, checked
-                                , href, rel, type_, value, rows, action)
+                                , href, rel, type_, value, rows, action, method)
 import Html.Events exposing (on, keyCode, onInput, onCheck, onClick, onWithOptions)
 import Http
 import HttpBuilder exposing (..)
 import Json.Decode as Decode
-import Json.Decode.Pipeline exposing (decode, required, requiredAt)
+import Json.Decode.Pipeline exposing (..)
+import Json.Encode as Encode
 
 
 type alias Model =
@@ -19,12 +20,18 @@ type alias Model =
   , page : String
   , authors : List Author
   , pub_year : Int
+  , pub_type : String
+  , state : String
+  , editors : List Author
+  , publisher : String
   }
+
 
 type alias Author = 
   { family : String
   , given : String
   }
+
 
 type Msg
   = NoOp
@@ -38,6 +45,7 @@ type Msg
   | UpdateAuthors String
   | UpdateDOI String
   | UpdatePubYear String
+  | Submit
 
 
 initialModel =
@@ -49,6 +57,10 @@ initialModel =
   , page = ""
   , authors = []
   , pub_year = 0
+  , pub_type = "Article"
+  , state = "published"
+  , editors = []
+  , publisher = ""
   }
 
 onKeyPress : (Int -> msg) -> Attribute msg
@@ -60,11 +72,13 @@ is13 : Int -> Msg
 is13 code =
   if code == 13 then Fetch else NoOp
 
+
 authorDecoder : Decode.Decoder Author
 authorDecoder =
   decode Author
   |> required "family" Decode.string
   |> required "given" Decode.string
+
 
 pubYearDecoder =
   Decode.string 
@@ -74,12 +88,16 @@ doiDecoder =
   decode Model
   |> required "DOI" Decode.string
   |> required "title" Decode.string
-  |> required "volume" Decode.string
-  |> required "issue" Decode.string
+  |> optional "volume" Decode.string ""
+  |> optional "issue" Decode.string ""
   |> required "container-title" Decode.string
-  |> required "page" Decode.string
+  |> optional "page" Decode.string ""
   |> required "author" (Decode.list authorDecoder)
   |> requiredAt ["published-print", "date-parts","0","0"] (Decode.int )
+  |> hardcoded "article"
+  |> hardcoded "published"
+  |> optional "editor" (Decode.list authorDecoder) []
+  |> optional "publisher" Decode.string ""
 
 
 handleRequestComplete : Result Http.Error Model -> Msg
@@ -93,6 +111,19 @@ handleRequestComplete result =
       in
          NoOp
 
+handleSubmitComplete : Result Http.Error () -> Msg
+handleSubmitComplete result = 
+  case result of 
+    Ok data ->
+      let
+          a = Debug.log "ok" data
+      in
+         NoOp
+    Err msg ->
+      let
+          a = Debug.log "error" msg
+      in
+         NoOp
 
 addItem : Model -> Cmd Msg
 addItem model =
@@ -108,6 +139,31 @@ url model =
   String.append "http://dx.doi.org/" model.doi
 
 
+citationEncoder : Model -> Encode.Value
+citationEncoder model =
+  Encode.object
+    [ ( "doi", Encode.string model.doi )
+    , ( "title", Encode.string model.title )
+    , ( "volume", Encode.string model.volume )
+    , ( "issue", Encode.string model.issue )
+    , ( "journal", Encode.string model.container_title )
+    , ( "page", Encode.string model.page )
+    , ( "workflow_state", Encode.string "published" )
+    , ( "publisher", Encode.string model.publisher )
+    ]
+  -- |> required "author" (Decode.list authorDecoder)
+  -- |> requiredAt ["published-print", "date-parts","0","0"] (Decode.int )
+  -- |> hardcoded "article"
+  -- |> optional "editor" (Decode.list authorDecoder) []
+
+
+submit : Model -> Cmd Msg
+submit model =
+  HttpBuilder.post "/"
+  |> withHeader "Accept" "application/json"
+  |> withJsonBody (Debug.log "post-data" (citationEncoder model))
+  |> send handleSubmitComplete
+
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = 
   case msg of
@@ -122,6 +178,8 @@ update msg model =
           newModel =  { model | doi = inputString }
       in
          ( newModel, Cmd.none )
+    Submit ->
+      (model,  submit model)
     UpdateTitle inputString ->
       let
           newModel = { model | title = inputString }
@@ -159,17 +217,28 @@ update msg model =
 onClickWithoutSubmit msg =
   onWithOptions "click" {stopPropagation = True, preventDefault = True} (Decode.succeed msg)
 
+to_author : Author -> String
+to_author author =
+  String.join ", " [author.family, author.given] 
+
+to_authors : List Author -> String
+to_authors authors =
+  String.join "\n" (List.map to_author authors)
+
 view : Model -> Html Msg
 view model = 
   div [ class "container" ] 
   [ h3 [] [text "DOI lookup"]
-  , form [action "/"] 
+  , div []
     [ doiView model
     , button [ class "btn"
            , onClickWithoutSubmit  Fetch ] 
         [text "Lookup DOI"]
     , citationView model
-    , button [ class "btn bnt-submit" ] [ text "Submit" ]
+    , button [ type_ "submit"
+             , class "btn bnt-submit"
+             , onClick Submit
+             ] [ text "Submit" ]
     ]
   ]
 
@@ -189,26 +258,29 @@ doiView model =
          ]
   ]
 
-to_author : Author -> String
-to_author author =
-  String.join ", " [author.family, author.given] 
-
-to_authors : List Author -> String
-to_authors authors =
-  String.join "\n" (List.map to_author authors)
-
 authorView : Model -> Html Msg
 authorView model =
     div [class "form-group" ] 
       [ label [ for "article-authors"] [ text "Authors" ]
       , textarea [ id "article-authors"
             , class "form-control"
-            , rows 3
+            , rows (List.length model.authors)
             , placeholder "Authors"
             , value (to_authors model.authors)
             , onInput UpdateAuthors ] []
       ]
 
+editorView : Model -> Html Msg
+editorView model =
+    div [class "form-group" ] 
+      [ label [ for "article-editors"] [ text "Editors" ]
+      , textarea [ id "article-editors"
+            , class "form-control"
+            , rows (List.length model.authors)
+            , placeholder "editors"
+            , value (to_authors model.editors)
+            ] []
+      ]
 
 citationViewRow : String -> String -> Attribute Msg ->  Html Msg
 citationViewRow field hint action =
@@ -226,16 +298,33 @@ citationViewRow field hint action =
             , action ] []
       ]
 
+noModelRow : String -> String -> Html Msg
+noModelRow field hint =
+  let
+    dashified = replace All (regex "\\s") (\_ -> "-") hint
+    my_id = String.append "article-" (String.toLower dashified)
+  in
+    div [class "form-group" ] 
+      [ label [ for my_id ] [ text hint]
+      , input [ id my_id
+            , class "form-control"
+            , type_ "text"
+            , placeholder hint
+            , value field ] []
+      ]
+
 
 citationView: Model -> Html Msg
 citationView model =
   div []
-    [ authorView model
-    , citationViewRow model.title "Article Title" (onInput UpdateTitle)
+    [ citationViewRow model.title "Article Title" (onInput UpdateTitle)
     , citationViewRow model.container_title "Journal" (onInput UpdateJournal)
+    , authorView model
     , citationViewRow model.page "Pages" (onInput UpdatePage)
     , citationViewRow model.volume "Volume" (onInput UpdateVolume)
     , citationViewRow (toString model.pub_year) "Year" (onInput UpdatePubYear)
+    , editorView model
+    , noModelRow model.publisher "Publisher"
     ]
 
 
