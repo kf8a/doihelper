@@ -27,6 +27,24 @@ initialModel =
   , state = "published"
   , editors = []
   , publisher = ""
+  , secondary_title = ""
+  , series_title = ""
+  , abstract = ""
+  , periodical_full_name = ""
+  -- , periodical_abbreviation = ""
+  -- , isbn = ""
+  -- , publisher_url = ""
+  -- , full_text = ""
+  -- , address = ""
+  -- , city = ""
+  -- , notes = ""
+  -- , open_access = False
+  -- , data_urls = ""
+  -- , has_acknowledgement = False
+  -- , annotation = ""
+  -- , pdf = ""
+  -- , data_tables = []
+  -- , treatment_areas = []
   }
 
 
@@ -55,6 +73,24 @@ doiDecoder =
   |> hardcoded "published"
   |> optional "editor" (Decode.list authorDecoder) []
   |> optional "publisher" Decode.string ""
+  |> optional "secondary-title" Decode.string ""
+  |> optional "series-title" Decode.string ""
+  |> optional "abstract" Decode.string ""
+  |> optional "periodical-full-name" Decode.string ""
+  -- |> optional "periodical-abbreviation" Decode.string ""
+  -- |> optional "isbn" Decode.string ""
+  -- |> optional "publisher-url" Decode.string ""
+  -- |> optional "full-text" Decode.string ""
+  -- |> optional "address" Decode.string ""
+  -- |> optional "city" Decode.string ""
+  -- |> optional "notes" Decode.string ""
+  -- |> optional "open_access" Decode.bool False
+  -- |> optional "data-urls" Decode.string ""
+  -- |> optional "has-acknowledgment" Decode.bool False
+  -- |> optional "annotation" Decode.string ""
+  -- |> optional "pdf" Decode.string ""
+  -- |> optional "data-tables" Decode.string ""
+  -- |> optional "treatment-aareas" Decode.string ""
 
 
 handleRequestComplete : Result Http.Error Model -> Msg
@@ -75,12 +111,13 @@ handleSubmitComplete result =
       let
           a = Debug.log "ok" data
       in
-         GoToShowPage
+         GoToShowPage 1
     Err msg ->
       let
           a = Debug.log "error" msg
       in
-         GoToShowPage
+         -- NoOp
+         GoToShowPage 2
 
 addItem : Model -> Cmd Msg
 addItem model =
@@ -134,6 +171,10 @@ submit model =
   |> withJsonBody (Debug.log "post-data" (citationEncoder model))
   |> send handleSubmitComplete
 
+newUrl : Int -> String
+newUrl id =
+   "/new/" ++ (toString id)
+
 update : Msg -> Model -> (Model, Cmd Msg)
 update msg model = 
   case msg of
@@ -150,8 +191,8 @@ update msg model =
          ( newModel, Cmd.none )
     Submit ->
       (model,  submit model)
-    GoToShowPage ->
-      ( model,  redirect "/new")
+    GoToShowPage id ->
+      ( model,  redirect (newUrl id))
     UpdateTitle inputString ->
       let
           newModel = { model | title = inputString }

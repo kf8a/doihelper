@@ -32,6 +32,7 @@ to_authors authors =
 
 --- VIEW
 
+
 view : Model -> Html Msg
 view model = 
   div [ class "container" ] 
