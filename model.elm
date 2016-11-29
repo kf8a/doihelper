@@ -17,20 +17,20 @@ type alias Model =
   , series_title : String
   , abstract : String
   , periodical_full_name :String
-  -- , periodical_abbreviation : String
-  -- , isbn : String
-  -- , publisher_url : String
-  -- , full_text : String
-  -- , address : String
-  -- , city : String
-  -- , notes : String
-  -- , open_access : Bool
-  -- , data_urls : String
-  -- , has_acknowledgement : Bool
-  -- , annotation : String
-  -- , pdf : String
-  -- , data_tables : List String
-  -- , treatment_areas : List String
+  , periodical_abbreviation : String
+  , isbn : String
+  , publisher_url : String
+  , full_text : String
+  , address : String
+  , city : String
+  , notes : String
+  , open_access : Bool
+  , data_urls : String
+  , has_acknowledgement : Bool
+  , annotation : String
+  , pdf : String
+  , data_tables : List String
+  , treatment_areas : List String
   }
 
 

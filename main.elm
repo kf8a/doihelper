@@ -31,20 +31,20 @@ initialModel =
   , series_title = ""
   , abstract = ""
   , periodical_full_name = ""
-  -- , periodical_abbreviation = ""
-  -- , isbn = ""
-  -- , publisher_url = ""
-  -- , full_text = ""
-  -- , address = ""
-  -- , city = ""
-  -- , notes = ""
-  -- , open_access = False
-  -- , data_urls = ""
-  -- , has_acknowledgement = False
-  -- , annotation = ""
-  -- , pdf = ""
-  -- , data_tables = []
-  -- , treatment_areas = []
+  , periodical_abbreviation = ""
+  , isbn = ""
+  , publisher_url = ""
+  , full_text = ""
+  , address = ""
+  , city = ""
+  , notes = ""
+  , open_access = False
+  , data_urls = ""
+  , has_acknowledgement = False
+  , annotation = ""
+  , pdf = ""
+  , data_tables = []
+  , treatment_areas = []
   }
 
 
@@ -77,20 +77,20 @@ doiDecoder =
   |> optional "series-title" Decode.string ""
   |> optional "abstract" Decode.string ""
   |> optional "periodical-full-name" Decode.string ""
-  -- |> optional "periodical-abbreviation" Decode.string ""
-  -- |> optional "isbn" Decode.string ""
-  -- |> optional "publisher-url" Decode.string ""
-  -- |> optional "full-text" Decode.string ""
-  -- |> optional "address" Decode.string ""
-  -- |> optional "city" Decode.string ""
-  -- |> optional "notes" Decode.string ""
-  -- |> optional "open_access" Decode.bool False
-  -- |> optional "data-urls" Decode.string ""
-  -- |> optional "has-acknowledgment" Decode.bool False
-  -- |> optional "annotation" Decode.string ""
-  -- |> optional "pdf" Decode.string ""
-  -- |> optional "data-tables" Decode.string ""
-  -- |> optional "treatment-aareas" Decode.string ""
+  |> optional "periodical-abbreviation" Decode.string ""
+  |> optional "isbn" Decode.string ""
+  |> optional "publisher-url" Decode.string ""
+  |> optional "full-text" Decode.string ""
+  |> optional "address" Decode.string ""
+  |> optional "city" Decode.string ""
+  |> optional "notes" Decode.string ""
+  |> optional "open_access" Decode.bool False
+  |> optional "data-urls" Decode.string ""
+  |> optional "has-acknowledgment" Decode.bool False
+  |> optional "annotation" Decode.string ""
+  |> optional "pdf" Decode.string ""
+  |> optional "data-tables" (Decode.list Decode.string) []
+  |> optional "treatment-aareas" (Decode.list Decode.string) []
 
 
 handleRequestComplete : Result Http.Error Model -> Msg
