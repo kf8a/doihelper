@@ -20,15 +20,14 @@ is13 code =
 onClickWithoutSubmit msg =
   onWithOptions "click" {stopPropagation = True, preventDefault = True} (Decode.succeed msg)
 
-to_author : Author -> String
-to_author author =
-  String.join ", " [author.family, author.given] 
+to_person : Person -> String
+to_person person =
+  String.join ", " [person.family, person.given] 
 
 
-to_authors : List Author -> String
-to_authors authors =
-  String.join "\n" (List.map to_author authors)
-
+to_people : List Person -> String
+to_people people =
+  String.join "\n" (List.map to_person people)
 
 --- VIEW
 
@@ -74,7 +73,7 @@ authorView model =
             , class "form-control"
             , rows (List.length model.authors)
             , placeholder "Authors"
-            , value (to_authors model.authors)
+            , value (to_people model.authors)
             , onInput UpdateAuthors ] []
       ]
 
@@ -84,9 +83,9 @@ editorView model =
       [ label [ for "article-editors"] [ text "Editors" ]
       , textarea [ id "article-editors"
             , class "form-control"
-            , rows (List.length model.authors)
+            , rows (List.length model.editors)
             , placeholder "editors"
-            , value (to_authors model.editors)
+            , value (to_people model.editors)
             ] []
       ]
 
@@ -115,11 +114,27 @@ noModelRow field hint =
     div [class "form-group" ] 
       [ label [ for my_id ] [ text hint]
       , input [ id my_id
-            , class "form-control"
-            , type_ "text"
-            , placeholder hint
-            , value field ] []
+              , class "form-control"
+              , type_ "text"
+              , placeholder hint
+              , value field ] []
       ]
+
+boolField : Bool -> String -> Html Msg
+boolField field hint =
+  let
+    dashified = replace All (regex "\\s") (\_ -> "-") hint
+    my_id = String.append "article-" (String.toLower dashified)
+  in
+    div [class "checkbox" ] 
+      [ label []
+        [ input [ id my_id
+                , type_ "checkbox"
+                ] [  text hint ]
+        , p [] [ text hint ]
+        ]
+      ]
+
 
 citationView: Model -> Html Msg
 citationView model =
@@ -127,9 +142,25 @@ citationView model =
     [ citationViewRow model.title "Article Title" (onInput UpdateTitle)
     , citationViewRow model.container_title "Journal" (onInput UpdateJournal)
     , authorView model
+    , editorView model
     , citationViewRow model.page "Pages" (onInput UpdatePage)
     , citationViewRow model.volume "Volume" (onInput UpdateVolume)
     , citationViewRow (toString model.pub_year) "Year" (onInput UpdatePubYear)
-    , editorView model
     , noModelRow model.publisher "Publisher"
+    , noModelRow model.secondary_title "Secondary Title"
+    , noModelRow model.abstract "Abstract"
+    , noModelRow model.periodical_full_name "Periodical Full Name"
+    , noModelRow model.periodical_abbreviation "Periodical Abbreviation"
+    , noModelRow model.data_urls "Data URL"
+    , noModelRow model.publisher_url "Publisher URL"
+    , boolField model.open_access "Open Access"
+    , boolField model.has_acknowledgement "LTER/GLBRC acknowledged"
+    , noModelRow model.pdf "PDF"
+    , noModelRow model.annotation "Annotation"
+    , noModelRow model.notes "Notes"
+    , noModelRow model.isbn "ISBN"
+    , noModelRow model.address "Address"
+    , noModelRow model.city "City"
+    -- , noModelRow model.data_tables "Data Tables"
+    -- , noModelRow model.treatment_areas "Assocaated Treatment Areas"
     ]

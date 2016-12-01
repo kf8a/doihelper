@@ -1,9 +1,6 @@
 port module Main exposing (..)
 import Time
 import Html exposing (..)
-import Html.Attributes exposing (id, for, class, autofocus, placeholder, classList, checked
-                                , href, rel, type_, value, rows, action, method)
-import Html.Events exposing (on, keyCode, onInput, onCheck, onClick, onWithOptions)
 import Http
 import HttpBuilder exposing (..)
 import Json.Decode as Decode
@@ -13,9 +10,10 @@ import Json.Encode as Encode
 import View exposing (view)
 import Model exposing (..)
 
+---"10.1038/nrd842"
 
 initialModel =
-  { doi = "10.1038/nrd842"
+  { doi = "10.1007/1-4020-4466-6" 
   , title = ""
   , volume = ""
   , issue = ""
@@ -34,7 +32,6 @@ initialModel =
   , periodical_abbreviation = ""
   , isbn = ""
   , publisher_url = ""
-  , full_text = ""
   , address = ""
   , city = ""
   , notes = ""
@@ -48,9 +45,9 @@ initialModel =
   }
 
 
-authorDecoder : Decode.Decoder Author
-authorDecoder =
-  decode Author
+personDecoder : Decode.Decoder Person
+personDecoder =
+  decode Person
   |> required "family" Decode.string
   |> required "given" Decode.string
 
@@ -65,13 +62,13 @@ doiDecoder =
   |> required "title" Decode.string
   |> optional "volume" Decode.string ""
   |> optional "issue" Decode.string ""
-  |> required "container-title" Decode.string
+  |> optional "container-title" Decode.string ""
   |> optional "page" Decode.string ""
-  |> required "author" (Decode.list authorDecoder)
+  |> optional "author" (Decode.list personDecoder) []
   |> requiredAt ["published-print", "date-parts","0","0"] (Decode.int )
   |> hardcoded "article"
   |> hardcoded "published"
-  |> optional "editor" (Decode.list authorDecoder) []
+  |> optional "editor" (Decode.list personDecoder) []
   |> optional "publisher" Decode.string ""
   |> optional "secondary-title" Decode.string ""
   |> optional "series-title" Decode.string ""
@@ -80,7 +77,6 @@ doiDecoder =
   |> optional "periodical-abbreviation" Decode.string ""
   |> optional "isbn" Decode.string ""
   |> optional "publisher-url" Decode.string ""
-  |> optional "full-text" Decode.string ""
   |> optional "address" Decode.string ""
   |> optional "city" Decode.string ""
   |> optional "notes" Decode.string ""
@@ -90,19 +86,16 @@ doiDecoder =
   |> optional "annotation" Decode.string ""
   |> optional "pdf" Decode.string ""
   |> optional "data-tables" (Decode.list Decode.string) []
-  |> optional "treatment-aareas" (Decode.list Decode.string) []
+  |> optional "treatment-areas" (Decode.list Decode.string) []
 
 
 handleRequestComplete : Result Http.Error Model -> Msg
 handleRequestComplete result =
   case result of
     Ok data ->
-      Update (Debug.log "result" data)
+      Update data
     Err msg ->
-      let
-          a = Debug.log "error" msg
-      in
-         NoOp
+      NoOp
 
 handleSubmitComplete : Result Http.Error () -> Msg
 handleSubmitComplete result = 
@@ -133,15 +126,11 @@ url model =
   String.append "http://dx.doi.org/" model.doi
 
 
--- authorsEncoder : (List Author) -> Encode.Value
--- authorsEncoder authors =
---   Encode.list authorsEncoder authors
-
-authorEncoder : Author -> Encode.Value
-authorEncoder author =
+encodePerson: Person -> Encode.Value
+encodePerson person =
   Encode.object
-    [ ( "given-name", Encode.string author.given )
-    , ( "family-name", Encode.string author.family )
+    [ ( "given-name", Encode.string person.given )
+    , ( "family-name", Encode.string person.family )
     ]
 
 citationEncoder : Model -> Encode.Value
@@ -156,7 +145,8 @@ citationEncoder model =
     , ( "workflow_state", Encode.string "published" )
     , ( "publisher", Encode.string model.publisher )
     , ( "pub-year", Encode.int model.pub_year)
-    -- , ( "authors", authorsEncoder model.authors)
+    , ( "authors", Encode.list (List.map encodePerson model.authors) )
+    , ( "editors", Encode.list (List.map encodePerson model.editors) )
     ]
   -- |> required "author" (Decode.list authorDecoder)
   -- |> requiredAt ["published-print", "date-parts","0","0"] (Decode.int )

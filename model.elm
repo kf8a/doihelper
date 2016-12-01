@@ -7,11 +7,11 @@ type alias Model =
   , issue : String
   , container_title : String
   , page : String
-  , authors : List Author
+  , authors : List Person
   , pub_year : Int
   , pub_type : String
   , state : String
-  , editors : List Author
+  , editors : List Person
   , publisher : String
   , secondary_title : String
   , series_title : String
@@ -20,7 +20,6 @@ type alias Model =
   , periodical_abbreviation : String
   , isbn : String
   , publisher_url : String
-  , full_text : String
   , address : String
   , city : String
   , notes : String
@@ -34,10 +33,11 @@ type alias Model =
   }
 
 
-type alias Author = 
+type alias Person = 
   { family : String
   , given : String
   }
+
 
 type Msg
   = NoOp
